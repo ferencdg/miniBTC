@@ -1,0 +1,13 @@
+{
+  "inputs": [],
+  "outputs": [
+    {
+      "amount": 50000000,
+      "key": "0xb8e4faf9bbf2e536f2b34e83577991df54a2234764a02434c9d03bf65c212666"
+    },
+    {
+      "amount": 50000000,
+      "key": "0x93463e3fee4c0ad27a672c34ecd015e9eb09ae61dbe075ba79ed2425ef029cc7"
+    }
+  ]
+}
