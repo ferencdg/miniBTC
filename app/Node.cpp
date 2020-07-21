@@ -13,7 +13,6 @@ using namespace simpleBlockchain::common;
 namespace po = boost::program_options;
 using njson = nlohmann::json;
 
-
 namespace simpleBlockchain::app
 {
 
@@ -58,7 +57,27 @@ void Node::start()
             }
 
             // mine the block
-            Block minedBlock = mineBlock(transaction);
+            optional<Block> minedBlockOptional = mineBlock(transaction);
+
+            // nonce turned around and we still haven't found the right hash
+            if (!minedBlockOptional)
+            {
+                Utility::send_response<string>(request_holder.original_http_request, "\n\nunable to include this transaction into the blockchain at the current difficulty level\n\n", 501);
+                continue;
+            }
+
+            Block& minedBlock = minedBlockOptional.get();
+            vector<Block>& blocks = _blockchain.blocks;
+
+            // now we can mark the refered transaction output's as spent
+            for (const Input& input : transaction.inputs)
+                blocks[_blockchain.transactions_map[input.hash]].transaction.outputs[input.index].spent = true;
+
+            // adding the new block to the blockchain
+            blocks.push_back(minedBlock);
+
+            // adding the transaction to the transaction map
+            _blockchain.transactions_map[transaction.hash] = blocks.size() - 1;
 
             // send resonse back to the client
             Utility::send_response<string>(request_holder.original_http_request, "\n\nblock mined\n\n", 200);
@@ -70,7 +89,7 @@ void Node::start()
 
 // this method could be put into its own interface called MinerInterface
 // we could have multiple miner implementations like SingleThreadedMiner or MultiThreadedMiner
-Block Node::mineBlock(const Transaction& transaction)
+optional<Block> Node::mineBlock(const Transaction& transaction)
 {
     Block blockToMine{}; // initializes everything to 0, including the nonce
     vector<Block>& blocks = _blockchain.blocks;
@@ -93,23 +112,17 @@ Block Node::mineBlock(const Transaction& transaction)
         do
         {
             ++blockToMine.nonce;
+            // the nonce can turn around and become zero again in case the difficulty is high enough
+            if (!blockToMine.nonce)
+                return boost::none;
+
             blockToMine.recalculateHash(state);
         }
         while (!blockToMine.passDifficultyTest(difficulty));
     }
     cout << "blocked mined in " << millisecsElapsed / 1000 << " seconds " << millisecsElapsed % 1000 << " milliseconds with nonce(" << blockToMine.nonce << ") with overall hash rate of " << (blockToMine.nonce / 1000) / (millisecsElapsed / 1000) << "Hz/s" << endl;
 
-    // no we can mark the refered transaction output's as spent
-    for (const Input& input : transaction.inputs)
-        blocks[_blockchain.transactions_map[input.hash]].transaction.outputs[input.index].spent = true;
-
-    // adding the new block to the blockchain
-    blocks.push_back(blockToMine);
-
-    // adding the transaction to the transaction map
-    _blockchain.transactions_map[transaction.hash] = blocks.size() - 1;
-
-    return blockToMine;
+    return optional<Block>(blockToMine);
 }
 
 }
